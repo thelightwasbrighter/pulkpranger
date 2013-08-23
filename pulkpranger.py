@@ -40,6 +40,8 @@ class Task(object):
         for line in open(igc_file, 'r'):
             if line[0:14]=='LSCSDGate open':
                 self.gateopen=3600*int(line[15:17])+60*int(line[18:20])
+            if line[0:15]=='LSCSDGate close':
+                self.gateclose=3600*int(line[16:18])+60*int(line[19:21])
             if line[0:10]=='LSCSRSLINE':
                 self.startline_length=float(line[11:])
             if line[0:14]=='LSCSRFCYLINDER':
@@ -58,7 +60,21 @@ class Task(object):
                 self.low_i=string.find(line,':',7)
                 self.high_i=string.find(line,':',self.low_i+1)
                 self.finish_point=Point(0, float(line[self.high_i+2:self.high_i+5])+(float(line[self.high_i+5:self.high_i+10])/60000),float(line[self.low_i+2:self.low_i+4])+(float(line[self.low_i+4:self.low_i+9])/60000),line[self.low_i+1],line[self.high_i+1],0)
-
+        
+        self.x_vect=(self.start_point.x_pos-self.waypoints[0].x_pos)
+        self.y_vect=(self.start_point.y_pos-self.waypoints[0].y_pos)
+        self.zwischen=self.x_vect
+        self.x_vect=self.y_vect/X_STEP
+        self.y_vect=-self.zwischen*X_STEP
+        self.betrag=math.sqrt(self.x_vect*self.x_vect*X_STEP*X_STEP+self.y_vect*self.y_vect)
+        self.x_vect=self.x_vect/self.betrag
+        self.y_vect=self.y_vect/self.betrag
+        self.start_line_a=Point(0,0,0,'N','E',0)
+        self.start_line_b=Point(0,0,0,'N','E',0)
+        self.start_line_a.x_pos=self.start_point.x_pos-self.startline_length/220000*self.x_vect
+        self.start_line_b.x_pos=self.start_point.x_pos+self.startline_length/220000*self.x_vect
+        self.start_line_a.y_pos=self.start_point.y_pos-self.startline_length/220000*self.y_vect
+        self.start_line_b.y_pos=self.start_point.y_pos+self.startline_length/220000*self.y_vect
                    
 class Trace(object):
     def __init__(self, igc_file, task):
@@ -101,7 +117,21 @@ class Trace(object):
                 max_index=max_index+1
             if distance(self.waypoints[min_index],self.waypoints[max_index])<KURBEL_DX:
                 self.waypoints[i].circling=True
-            
+        
+        #task start detection
+        on_task_temp=False
+        for i in range(len(self.waypoints)):
+            if i!=0:
+                if intersect(self.waypoints[i-1], self.waypoints[i], task.start_line_a, task.start_line_b) and self.waypoints[i].time<task.gateclose:
+                    for j in range(i):
+                        self.waypoints[j].on_task=False
+                    self.waypoints[i].on_task=True
+                    on_task_temp=True
+                elif on_task_temp==True:
+                    self.waypoints[i].on_task=True
+                else:
+                    self.waypoints[i].on_task=False
+
         #for p in self.waypoints:
         #     print p.time
         #     print p.x_pos
@@ -296,21 +326,7 @@ class Player(object):
         pygame.draw.line(self.disp.task_surface, TASK_COL, (int(map(self.x_map_parameter[0],self.x_map_parameter[1],self.x_map_parameter[2], self.x_map_parameter[3], self.task.waypoints[len(self.task.waypoints)-1].x_pos)), int(self.y_map_parameter[3]-map(self.y_map_parameter[0],self.y_map_parameter[1],self.y_map_parameter[2], self.y_map_parameter[3], self.task.waypoints[len(self.task.waypoints)-1].y_pos))),(int(map(self.x_map_parameter[0],self.x_map_parameter[1],self.x_map_parameter[2], self.x_map_parameter[3], self.task.finish_point.x_pos)), int(self.y_map_parameter[3]-map(self.y_map_parameter[0],self.y_map_parameter[1],self.y_map_parameter[2], self.y_map_parameter[3], self.task.finish_point.y_pos))))
         
         #start line
-        self.x_vect=(self.task.start_point.x_pos-self.task.waypoints[0].x_pos)
-        self.y_vect=(self.task.start_point.y_pos-self.task.waypoints[0].y_pos)
-        self.zwischen=self.x_vect
-        self.x_vect=self.y_vect/X_STEP
-        self.y_vect=-self.zwischen*X_STEP
-        self.betrag=math.sqrt(self.x_vect*self.x_vect*X_STEP*X_STEP+self.y_vect*self.y_vect)
-        self.x_vect=self.x_vect/self.betrag
-        self.y_vect=self.y_vect/self.betrag
-        self.start_line_a=Point(0,0,0,'N','E',0)
-        self.start_line_b=Point(0,0,0,'N','E',0)
-        self.start_line_a.x_pos=self.task.start_point.x_pos-self.task.startline_length/220000*self.x_vect
-        self.start_line_b.x_pos=self.task.start_point.x_pos+self.task.startline_length/220000*self.x_vect
-        self.start_line_a.y_pos=self.task.start_point.y_pos-self.task.startline_length/220000*self.y_vect
-        self.start_line_b.y_pos=self.task.start_point.y_pos+self.task.startline_length/220000*self.y_vect
-        pygame.draw.line(self.disp.task_surface, TASK_COL, (int(map(self.x_map_parameter[0],self.x_map_parameter[1],self.x_map_parameter[2], self.x_map_parameter[3], self.start_line_a.x_pos)), int(self.y_map_parameter[3]-map(self.y_map_parameter[0],self.y_map_parameter[1],self.y_map_parameter[2], self.y_map_parameter[3], self.start_line_a.y_pos))),(int(map(self.x_map_parameter[0],self.x_map_parameter[1],self.x_map_parameter[2], self.x_map_parameter[3], self.start_line_b.x_pos)), int(self.y_map_parameter[3]-map(self.y_map_parameter[0],self.y_map_parameter[1],self.y_map_parameter[2], self.y_map_parameter[3], self.start_line_b.y_pos))))
+        pygame.draw.line(self.disp.task_surface, TASK_COL, (int(map(self.x_map_parameter[0],self.x_map_parameter[1],self.x_map_parameter[2], self.x_map_parameter[3], self.task.start_line_a.x_pos)), int(self.y_map_parameter[3]-map(self.y_map_parameter[0],self.y_map_parameter[1],self.y_map_parameter[2], self.y_map_parameter[3], self.task.start_line_a.y_pos))),(int(map(self.x_map_parameter[0],self.x_map_parameter[1],self.x_map_parameter[2], self.x_map_parameter[3], self.task.start_line_b.x_pos)), int(self.y_map_parameter[3]-map(self.y_map_parameter[0],self.y_map_parameter[1],self.y_map_parameter[2], self.y_map_parameter[3], self.task.start_line_b.y_pos))))
 
 
     def play(self):
@@ -337,7 +353,8 @@ class Player(object):
                     if self.cnt>MIN_GAGGLE_SIZE-1 and distance(tr.waypoints[tr.last_index],tr.waypoints[tr.last_index-1])>10  and tr.waypoints[tr.last_index].circling:
                         if not tr.bart_initiator:
                             tr.is_in_gaggle=True
-                            tr.gaggle_counter=tr.gaggle_counter+1
+                            if tr.waypoints[tr.last_index].on_task:
+                                tr.gaggle_counter=tr.gaggle_counter+1
                         else:
                             tr.is_in_gaggle=False
                             tr.last_time_circling=t
@@ -357,7 +374,9 @@ class Player(object):
                 self.temp_pos_mapped.x_pos=map(self.x_map_parameter[0],self.x_map_parameter[1],self.x_map_parameter[2],self.x_map_parameter[3],self.temp_pos.x_pos)
                 self.temp_pos_mapped.y_pos=self.y_map_parameter[3]-map(self.y_map_parameter[0],self.y_map_parameter[1],self.y_map_parameter[2],self.y_map_parameter[3],self.temp_pos.y_pos)
                 self.disp.plane_surface.lock()
-                if tr.is_in_gaggle:
+                if tr.waypoints[tr.last_index].on_task==False:
+                    self.disp.plane_surface.set_at((int(self.temp_pos_mapped.x_pos),int(self.temp_pos_mapped.y_pos)), (0,0,255))
+                elif tr.is_in_gaggle:
                     self.disp.plane_surface.set_at((int(self.temp_pos_mapped.x_pos),int(self.temp_pos_mapped.y_pos)), (255,0,0))
                 elif tr.bart_initiator:
                     self.disp.plane_surface.set_at((int(self.temp_pos_mapped.x_pos),int(self.temp_pos_mapped.y_pos)), (0,255,0))
@@ -379,6 +398,29 @@ def distance(a,b):
 
 def distance_horizontal(a,b):
     return math.sqrt(pow((a.x_pos-b.x_pos)*X_STEP*110000,2)+pow((a.y_pos-b.y_pos)*Y_STEP*110000,2))
+
+def ccw(p0,p1,p2):
+    dx1=p1.x_pos-p0.x_pos
+    dy1=p1.y_pos-p0.y_pos
+    dx2=p2.x_pos-p0.x_pos
+    dy2=p2.y_pos-p0.y_pos
+    if dx1*dy2>dy1*dx2:
+        return 1
+    elif dx1*dy2<dy1*dx2:
+        return -1
+    elif dx1*dy2==dy1*dx2:
+        if (dx1*dx2<0) or (dy1*dy2<0):
+            return -1
+        elif (dx1*dx1+dy1*dy1)>=(dx2*dx2+dy2*dy2):
+            return 0
+        else :
+            return 1
+    print "Fehler in CCW"
+    while 1:
+        a=1
+
+def intersect(l00, l01, l10, l11):
+    return (((ccw(l00,l01,l10)*ccw(l00,l01,l11))<=0) and ((ccw(l10,l11,l00)*ccw(l10,l11,l01))<=0))
 
 mytask=Task(sys.argv[1])
 mybatch=Trace_batch()
