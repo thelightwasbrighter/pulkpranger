@@ -36,6 +36,7 @@ class Turnpoint(object):
 class Task(object):
     def __init__(self,igc_file):
         self.waypoints=[]
+        print "Extracting Task from " + igc_file
         for line in open(igc_file, 'r'):
             if line[0:14]=='LSCSDGate open':
                 self.gateopen=3600*int(line[15:17])+60*int(line[18:20])
@@ -68,6 +69,7 @@ class Trace(object):
         self.waypoints=[]
         self.bart_initiator=False
         self.last_time_circling=0
+        print "Evaluating " + self.name + "..."
         for line in open(igc_file, 'r'):
             if line.find('B')==0:
                 self.time=int(line[1:3])*3600+int(line[3:5])*60+int(line[5:7])
