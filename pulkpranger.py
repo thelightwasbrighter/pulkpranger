@@ -99,6 +99,19 @@ class Trace(object):
                 self.x_pos=float(self.x_pos[:3])+float(self.x_pos[3:])/60000.0
                 self.temp_pos=Point(self.time, self.x_pos, self.y_pos, self.x_ew, self.y_ns ,0,)
                 self.waypoints.append(Point(self.time, self.x_pos, self.y_pos, self.x_ew, self.y_ns ,self.height,False,True))
+        #plausibility
+        point_removed=True
+        while point_removed:
+            point_removed=False
+            for i in range(len(self.waypoints)):
+                if i!=0:
+                    if distance(self.waypoints[i], self.waypoints[i-1])>10000:
+                        self.waypoints.remove(self.waypoints[i-1])
+                        print "Point removed!!!"
+                        #point_removed=True
+                        break
+                    
+
         #circle detection
         for i in range(len(self.waypoints)):
             min_index=i
@@ -132,6 +145,27 @@ class Trace(object):
                 else:
                     self.waypoints[i].on_task=False
 
+        #end of flight detection
+        for i in reversed(range(len(self.waypoints))):
+            if self.waypoints[i].time-self.waypoints[i-1].time!=0:
+                if distance(self.waypoints[i], self.waypoints[i-1])/(self.waypoints[i].time-self.waypoints[i-1].time)<30:
+                    self.waypoints[i].on_task=False
+                else:
+                    break
+            self.waypoints[len(self.waypoints)-1].on_task=False
+
+        #calculate flight time on task
+        first_on_task_found=False
+        first_off_task_found=False
+        for p in self.waypoints:
+            if p.on_task and not first_on_task_found:
+                first_on_task_t=p.time
+                first_on_task_found=True
+            if not p.on_task and first_on_task_found and not first_off_task_found:
+                first_off_task_found=True
+                first_off_task_t=p.time
+        self.time_on_task=first_off_task_t-first_on_task_t
+        
         #for p in self.waypoints:
         #     print p.time
         #     print p.x_pos
@@ -432,7 +466,7 @@ myplayer.play()
 
 sorted_tracelist=sorted(mybatch.tracelist, key=lambda x: x.gaggle_counter, reverse=True)
 for tr in sorted_tracelist:
-    print tr.name, tr.gaggle_counter
+    print tr.name, tr.gaggle_counter, str(float(tr.gaggle_counter)/float(tr.time_on_task)*100)+'%'
 
 #mytrace.print_waypoints()
 # print mybatch.get_start_time()
