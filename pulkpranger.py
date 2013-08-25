@@ -86,6 +86,7 @@ class Trace(object):
         self.is_in_gaggle=False
         self.gaggle_counter=0
         self.gaggle_counter_rel=0
+        self.points=0
         self.last_index=0
         self.waypoints=[]
         self.bart_initiator=False
@@ -104,6 +105,11 @@ class Trace(object):
                 self.x_pos=float(self.x_pos[:3])+float(self.x_pos[3:])/60000.0
                 self.temp_pos=Point(self.time, self.x_pos, self.y_pos, self.x_ew, self.y_ns ,0,)
                 self.waypoints.append(Point(self.time, self.x_pos, self.y_pos, self.x_ew, self.y_ns ,self.height,False,True))
+            elif line.find('LSCSDCID')==0:
+                self.wbk=line[9:-1]
+            elif line.find('LSCSDName')==0:
+                self.pilot_name=line[10:-1]
+
         #plausibility
         point_removed=True
         while point_removed:
@@ -424,7 +430,7 @@ class Player(object):
             self.disp.draft_surface.blit(self.disp.task_surface, (0,0))
             self.disp.draft_surface.blit(self.disp.plane_surface, (0,0))
             self.disp.set_frame(self.disp.draft_surface)
-        for tr in self.trace_batch.traces:
+        for tr in self.trace_batch.tracelist:
             tr.gaggle_counter_rel=float(tr.gaggle_counter)/float(tr.time_on_task)
                 
 def map(a,b,x,y,e):
@@ -493,8 +499,17 @@ if average_abs<MAX_POINT_ABS_LIMIT:
 if average_rel<MAX_POINT_REL_LIMIT:
     max_points=max_points*average_rel/MAX_POINT_REL_LIMIT
 print max_points
-for tr in sorted_tracelist:
-    print tr.name, tr.gaggle_counter, str(float(tr.gaggle_counter)/float(tr.time_on_task)*100)+'%'
+
+#calculate points
+for tr in mybatch.tracelist:
+    tr.points=int(max_points*tr.gaggle_counter_rel/top_relative_gagglers[0].gaggle_counter_rel)
+
+winner_list=sorted(mybatch.tracelist, key=lambda x: x.points, reverse=True)
+
+#print result
+for tr in winner_list:
+    print tr.pilot_name, tr.wbk, tr.points
+    
 
 #mytrace.print_waypoints()
 # print mybatch.get_start_time()
