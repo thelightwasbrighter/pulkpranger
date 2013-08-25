@@ -8,6 +8,10 @@ KURBEL_DT=20
 KURBEL_DX=1000
 INITIATOR_SPAN=10
 TASK_COL=(100,100,100)
+TOP_PERCENT=10
+MAX_POINT_ABS_LIMIT=1000
+MAX_POINT_REL_LIMIT=0.1
+
 import pygame, pygame.locals
 import sys
 import copy
@@ -81,6 +85,7 @@ class Trace(object):
         self.name=igc_file
         self.is_in_gaggle=False
         self.gaggle_counter=0
+        self.gaggle_counter_rel=0
         self.last_index=0
         self.waypoints=[]
         self.bart_initiator=False
@@ -154,18 +159,16 @@ class Trace(object):
                     break
             self.waypoints[len(self.waypoints)-1].on_task=False
 
-        #calculate flight time on task
-        first_on_task_found=False
-        first_off_task_found=False
+        #task duration detection
+        on_task_temp=False
         for p in self.waypoints:
-            if p.on_task and not first_on_task_found:
-                first_on_task_t=p.time
-                first_on_task_found=True
-            if not p.on_task and first_on_task_found and not first_off_task_found:
-                first_off_task_found=True
-                first_off_task_t=p.time
-        self.time_on_task=first_off_task_t-first_on_task_t
-        
+            if p.on_task and not on_task_temp:
+                on_task_temp=True
+                t_temp=p.time
+            if not p.on_task and on_task_temp:
+                self.time_on_task=p.time-t_temp
+                break
+
         #for p in self.waypoints:
         #     print p.time
         #     print p.x_pos
@@ -421,7 +424,8 @@ class Player(object):
             self.disp.draft_surface.blit(self.disp.task_surface, (0,0))
             self.disp.draft_surface.blit(self.disp.plane_surface, (0,0))
             self.disp.set_frame(self.disp.draft_surface)
-                
+        for tr in self.trace_batch.traces:
+            tr.gaggle_counter_rel=float(tr.gaggle_counter)/float(tr.time_on_task)
                 
 def map(a,b,x,y,e):
     return ((float(e)-float(a))/(b-a)*(float(y)-float(x)))
@@ -464,7 +468,31 @@ for igc in sys.argv[1:]:
 myplayer=Player(mybatch,mytask)
 myplayer.play()
 
+top_absolute_gagglers=[]
+top_relative_gagglers=[]
 sorted_tracelist=sorted(mybatch.tracelist, key=lambda x: x.gaggle_counter, reverse=True)
+for i in range((len(mybatch.tracelist)*TOP_PERCENT)/100):
+    top_absolute_gagglers.append(sorted_tracelist[i])
+
+sorted_tracelist=sorted(mybatch.tracelist, key=lambda x: x.gaggle_counter_rel, reverse=True)
+for i in range((len(mybatch.tracelist)*TOP_PERCENT)/100):
+    top_relative_gagglers.append(sorted_tracelist[i])
+
+#calculate maximum points
+average_abs=0
+for tr in top_absolute_gagglers:
+    average_abs=average_abs+tr.gaggle_counter
+average_abs=float(average_abs)/float(len(top_absolute_gagglers))
+average_rel=0
+for tr in top_relative_gagglers:
+    average_rel=average_rel+tr.gaggle_counter_rel
+average_rel=float(average_rel)/float(len(top_relative_gagglers))
+max_points=1000
+if average_abs<MAX_POINT_ABS_LIMIT:
+    max_points=max_points*average_abs/MAX_POINT_ABS_LIMIT
+if average_rel<MAX_POINT_REL_LIMIT:
+    max_points=max_points*average_rel/MAX_POINT_REL_LIMIT
+print max_points
 for tr in sorted_tracelist:
     print tr.name, tr.gaggle_counter, str(float(tr.gaggle_counter)/float(tr.time_on_task)*100)+'%'
 
